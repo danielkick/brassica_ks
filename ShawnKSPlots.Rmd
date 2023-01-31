@@ -1,0 +1,1135 @@
+---
+title: "KSPlots"
+author: "Daniel Kick"
+date: "12/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+theme_set(ggplot2::theme_minimal())
+library(tictoc)
+```
+
+
+```{r}
+M <- read.table("./newgrouped-boleks.txt")
+names(M) <- c("Species", "KS", "Group")
+
+Mprime <- read.table("./Arabidopsis_thaliana.ks.txt")
+names(Mprime) <- c("Species", "KS", "Group")
+
+M <- rbind(M, Mprime)
+
+# ks less than 3
+M <- M[M$KS <= 3, ]
+```
+
+
+load phylogenetic tree
+
+```{r}
+library(ape)
+library(tidytree)
+
+apeTree <- ape::read.tree(file = './apro.tre')
+# plot(apeTree)
+
+tree_df <- as_tibble(apeTree)
+
+# tree_df
+```
+
+
+standardize naming
+```{r}
+# duplicate to ensure that the tree has the correct matches properly
+
+M[M$Species == 'Sinapis_alba-BMAP', 'Species'] <-   'Sinapis_alba_BMAP'
+M[M$Species == 'Eruca_vesicaria-BMAP', 'Species'] <-   'Eruca_vesicaria_BMAP'
+
+tree_df[(tree_df$label == "SinapisBMAP_alba"), 'label'] <- 'Sinapis_alba_BMAP'
+tree_df[(tree_df$label == "ErucaBMAP_vesicaria"), 'label'] <- 'Eruca_vesicaria_BMAP'
+```
+
+
+```{r}
+for(sp in unique(M$Species)){
+  M[M$Species == sp, 'Species'] <- strsplit(sp, '-')[[1]][1]
+}
+
+```
+
+
+
+```{r}
+# check that there are no mismatches
+ks_sp <- unique(M$Species)
+ks_sp <- data.frame('ks_sp' = ks_sp)
+# remove the (sometimes present) "-\D+$"
+# ks_sp$clean <- unlist(map(strsplit(ks_sp$ks_sp, split = '-'), function(e){e[1]}))
+ks_sp$clean <- ks_sp$ks_sp
+
+tr_sp <- unique(tree_df$label)
+tr_sp <- tr_sp[!(tr_sp %in% c('', '1.000000'))]
+tr_sp <- data.frame('tr_sp' = tr_sp)
+tr_sp$clean <- tr_sp$tr_sp
+
+sp_matches <- full_join(ks_sp, tr_sp) 
+
+mask <- (is.na(sp_matches$ks_sp) | is.na(sp_matches$tr_sp))
+print(sp_matches[mask, ])
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Simulate the distribution prior to species divergence
+# Combine two or more  distributions
+
+comingle_KS <- function(
+  df = M,
+  species = c("Brassica_cretica", "Zilla_macroptera-cdhitest90"),
+  weights = c(0.505, 0.5),
+  replace = T,
+  length_out = 100
+  ){
+  if(length(species) != length(weights)){
+    break
+  }
+  if (sum(weights) >1){
+    print("`weigths` are being normalized to sum to one")
+    weights <- (weights/sum(weights))
+  }
+  sample_each <- length_out*weights
+  sample_each <- round(sample_each)
+  
+  if(sum(sample_each) != length_out){
+    print("Sample number changed")
+  }
+  
+  sim_KS <- unlist(purrr::map(seq_along(species), function(i){
+    arr <- df[df$Species == species[i], 'KS']
+    return(sample(arr, sample_each[i], replace = replace))
+  }))
+
+  return(sim_KS)
+}
+
+
+species <- c("Brassica_cretica", "Zilla_macroptera")
+
+
+test_arr <- comingle_KS(
+  df = M,
+  species = species,
+  weights = c(0.505, 0.5),
+  replace = T,
+  length_out = 1000)
+
+ggplot(M[M$Species %in% species, ])+
+  geom_density(aes(x = KS, fill = Species, color = Species), alpha = 0.5)+
+  geom_density(data = data.frame(KS = test_arr
+                                 #, Species = rep('Mix', times = length(test_arr))
+                                 ),
+               aes(x = KS), color = 'Black')+
+  facet_grid(Species~.)+
+  scale_fill_manual(values = c('Purple', 'Orange', 'Blue'))+
+  scale_color_manual(values = c('Purple', 'Orange', 'Blue'))+
+  theme(legend.position = 'bottom')
+
+```
+
+
+demo
+sample ingroup
+```{r}
+
+M %>% group_by(Species) %>% tally()
+
+
+species <- unique(M[M$Group == 'ingroup', 'Species'])
+
+
+test_arr <- comingle_KS(
+  df = M,
+  species = species,
+  weights = rep(1/length(species), times = length(species)),
+  replace = T,
+  length_out = 10000)
+
+
+ggplot(M[M$Species %in% species, ])+
+  geom_density(aes(x = KS, fill = Species), alpha = 0.5)+
+  geom_density(data = data.frame(KS = test_arr
+                                 #, Species = rep('Mix', times = length(test_arr))
+                                 ),
+               aes(x = KS), color = 'Blue')+
+  facet_wrap(Species~.)+
+  theme(legend.position = 'none')
+```
+
+sample outgroup
+```{r}
+species <- unique(M[M$Group != 'ingroup', 'Species'])
+
+
+test_arr_outgroup <- comingle_KS(
+  df = M,
+  species = species,
+  weights = rep(1/length(species), times = length(species)),
+  replace = T,
+  length_out = 10000)
+
+
+ggplot(M[M$Species %in% species, ])+
+  geom_density(aes(x = KS, fill = Species), alpha = 0.5)+
+  geom_density(data = data.frame(KS = test_arr
+                                 #, Species = rep('Mix', times = length(test_arr))
+                                 ),
+               aes(x = KS), color = 'Blue')+
+  facet_wrap(Species~.)+
+  theme(legend.position = '')
+```
+
+resample 
+```{r}
+
+# NOTE! to showcase variability I've decreased the sample size
+resample_list <- purrr::map(1:100, function(i){
+  comingle_KS(
+    df = M,
+    species = species,
+    weights = rep(1/length(species), times = length(species)),
+    replace = T,
+    length_out = 100)  
+}
+  )
+
+i = 1
+do.call(rbind, purrr::map(seq_along(resample_list), function(i){
+  out = data.frame(KS = resample_list[[i]])
+  out[['Rep']] = as.character(i)
+  return(out)
+})
+) %>% ggplot(aes(x = KS#, color = Rep
+                 , group = Rep
+                 ))+
+  geom_density()
+```
+
+
+
+
+
+
+
+
+```{r}
+prep_ecdf_ks <- function(
+  df = rbind(temp1, temp2),
+  data.col = "Corr",
+  group.col = "group",
+  group1 = "Baseline",
+  group2 = "Compensated",
+  colors = c("#4d4d4d", 
+             #"#67a9cf", 
+             "#1c9099"),
+  downsample_dist = TRUE) {
+  # 
+  # if(TRUE == FALSE){
+  #   # for testing
+  #   df = M
+  #   data.col = "KS"
+  #   group.col = "Species"
+  #   group1 = "Brassica_cretica"
+  #   group2 =  "Brassica_hilarionis"
+  #   colors = c("#4d4d4d",
+  #              #"#67a9cf",
+  #              "#1c9099")
+  #   downsample_dist = FALSE # force ecdfs to have the same length
+  # }
+
+
+  
+  
+  
+  # Adapted from:
+  # https://rpubs.com/mharris/KSplot
+  df <- filter(df, df[[group.col]] %in% c(group1, group2))
+  
+  # df[df[[group.col]] == group1, data.col]
+  
+  
+  data1 <- unlist(df[df[[group.col]] == group1, data.col])
+  data2 <- unlist(df[df[[group.col]] == group2, data.col])
+  
+  # force to be the same length
+  if(downsample_dist == TRUE){
+    print('Downsampling Distribution')
+    min_length = min(length(data1),   length(data2))
+    
+    if(length(data1) - min_length > 0){
+      downsample_idxs <- round(seq(1, length(data1), length.out = min_length))
+      data1 <- sort(data1)
+      data1 <- data1[downsample_idxs]      
+    }
+    
+    if(length(data2) - min_length > 0){
+      downsample_idxs <- round(seq(1, length(data2), length.out = min_length))
+      data2 <- sort(data2)
+      data2 <- data2[downsample_idxs]      
+    }    
+  }
+
+  
+
+
+  
+  
+  
+  ecdf1 <- ecdf(data1)
+  ecdf2 <- ecdf(data2)
+  
+  # used to get the most extreme difference between the two samples
+  MostExtremeDiff <- seq(min(data1, data2, na.rm = T), max(data1, data2, na.rm = T), length.out = length(data1))
+  x0 <- MostExtremeDiff[which(abs(ecdf1(MostExtremeDiff) - ecdf2(MostExtremeDiff)) == 
+                                max(abs(ecdf1(MostExtremeDiff) - ecdf2(MostExtremeDiff))))]
+  y0 <- ecdf1(x0)
+  y1 <- ecdf2(x0)
+  
+  # depends on equal length
+  #graph.df <- data.frame(data1, data2) %>% gather(Condition, Value, 1:2)
+  # makes this not depend on equal values
+  graph.df <- rbind(
+    data.frame(
+    Condition = rep("data1", length(data1)),
+    Value = data1
+  ),
+  data.frame(
+    Condition = rep("data2", length(data2)),
+    Value = data2
+  )
+  )
+  graph.df[graph.df$Condition == "data1", "Condition"] <- group1
+  graph.df[graph.df$Condition == "data2", "Condition"] <- group2
+  
+  # Run two sided KS test on data
+  test.res <- ks.test(data1, data2)
+  
+  out <- list(
+            'group1' = group1,
+            'group2' = group2,
+            'test.res' = test.res,
+            'graph.df' = graph.df,
+            'x0' = x0,
+            'y0' = y0,
+            'y1' = y1,
+            'colors' = colors
+              )
+  return(out)
+}
+  
+plot_ecdf_ks_prep <- function(prep){
+  group1 = prep$group1
+  group2 = prep$group2
+  test.res = prep$test.res
+  graph.df = prep$graph.df
+  x0 = prep$x0
+  y0 = prep$y0
+  x1 = prep$x1
+  y1 = prep$y1
+  colors = prep$colors
+  
+  
+  plt <- 
+    ggplot(graph.df)+
+    geom_segment(aes(x = x0[1], y = y0[1], xend = x0[1], yend = y1[1]),
+                 linetype = "dashed", color = "black", size = 1)+
+    geom_point(aes(x = x0[1] , y= y0[1]), color="black", size=2) +
+    geom_point(aes(x = x0[1] , y= y1[1]), color="black", size=2) +
+    stat_ecdf(aes(x = Value, group = Condition, color = Condition))+
+    labs(x = "Sample", 
+         y = "ECDF", 
+         title = paste("K-S Test", as.character(group1), "vs", as.character(group2), 
+                       "\np-value:", as.character(test.res$p.value, digits = 4)))+
+    theme_minimal()+
+    theme(legend.position = "bottom")+
+    scale_color_manual(values = colors)#+
+    # theme(text=element_text(family="Calibri Light", size=14)) 
+  
+  return(plt)
+  
+}
+
+
+tmp_prep <- prep_ecdf_ks(
+  df = M,
+  data.col = "KS",
+  group.col = "Species",
+  group1 = "Brassica_cretica",
+  group2 =  "Brassica_hilarionis",
+  # group.col = "Group",
+  # group1 = "ingroup",
+  # group2 =  "outgroup",
+  colors = c("#4d4d4d",
+             #"#67a9cf",
+             "#1c9099"), 
+  downsample_dist = TRUE)
+
+plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_prep$test.res
+```
+
+Build on demo 
+```{r}
+
+df_demo_comingle <- data.frame(
+    KS = c(test_arr, test_arr_outgroup),
+    Species = c(rep('ingroup', times = length(test_arr)),
+                rep('outgroup', times = length(test_arr_outgroup)))
+    
+  )
+
+
+df_demo_comingle %>% 
+  ggplot(aes(x = KS, fill = Species))+
+  geom_density(alpha = 0.5)+
+  scale_fill_manual(values = c('Purple', 'Orange', 'Blue'))+
+  theme(legend.position = 'bottom')
+
+
+tmp_prep <- prep_ecdf_ks(
+  df = df_demo_comingle,
+  data.col = "KS",
+  group.col = "Species",
+  group1 = "ingroup",
+  group2 =  "outgroup",
+  # group.col = "Group",
+  # group1 = "ingroup",
+  # group2 =  "outgroup",
+  colors = c("#4d4d4d",
+             #"#67a9cf",
+             "#1c9099"), 
+  downsample_dist = TRUE)
+
+plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_prep$test.res
+```
+
+```{r}
+test_arr_diff <- (sort(test_arr) - sort(test_arr_outgroup))
+
+library(bayestestR)
+  
+# Compute HDI and ETI
+ci_hdi <- ci(test_arr_diff, method = "HDI")
+ci_eti <- ci(test_arr_diff, method = "ETI")
+
+# p <- 
+data.frame(KS = test_arr_diff) %>% 
+  # mutate(HDI = case_when(
+  #   ((KS > ci_hdi$CI_low) & (KS < ci_hdi$CI_high)) ~ T,
+  #   !((KS > ci_hdi$CI_low) & (KS < ci_hdi$CI_high)) ~F,
+  # )) %>% 
+  ggplot()+
+  geom_vline(xintercept =  0, color = 'blue', linetype = 'dashed')+
+  geom_vline(xintercept =  ci_hdi$CI_low, color = 'firebrick')+
+  geom_vline(xintercept =  ci_hdi$CI_high, color = 'firebrick')+
+  geom_density(aes(x = KS))+
+  coord_cartesian(xlim = c(-0.25, 0.25))
+    
+  
+  
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# map(unique(M$Species), function)
+sp_comb <- combn(unique(M$Species), 2)
+sp_comb <- data.frame(t(sp_comb))
+names(sp_comb) <- c("Species_1", "Species_2")
+
+
+
+
+
+
+
+if (file.exists("./sp_comb_list.Rdata")){
+  sp_comb_list <- readRDS("./sp_comb_list.Rdata")
+} else {
+  tictoc::tic()
+    # 362.28 sec elapsed (6 minutes)
+    sp_comb_list <- map(seq(1,
+                            # 100
+                            nrow(sp_comb)
+                            ), 
+      function(i){
+        out <- prep_ecdf_ks(
+          df = M,
+          data.col = "KS",
+          group.col = "Species",
+          group1 = sp_comb[i, c("Species_1")],
+          group2 =  sp_comb[i, c("Species_2")],
+          # group.col = "Group",
+          # group1 = "ingroup",
+          # group2 =  "outgroup",
+          colors = c("#4d4d4d", 
+                     #"#67a9cf", 
+                     "#1c9099"))
+        return(out)
+      
+    })
+  
+  tictoc::toc()  
+
+  saveRDS(sp_comb_list, "./sp_comb_list.Rdata")
+}
+```
+
+```{r}
+# sp_comb_list[[1]]$test.res$p.value
+# sp_comb_list[[2]]$test.res$p.value
+
+# plot_ecdf_ks_prep(prep = tmp_prep)
+
+# merge in ingroup/outgroup labels
+M_labs <- M %>% select(-KS) %>% distinct()
+sp_comb <-
+  left_join(sp_comb, 
+            rename(M_labs, 
+                   Species_1 = Species,
+                   Group_1 = Group)) %>% 
+  left_join(rename(M_labs, 
+                   Species_2 = Species,
+                   Group_2 = Group))
+
+# sp_comb["P"] = unlist(map(sp_comb_list, function(e){e$test.res$p.value}))
+# 
+# 
+# sp_comb["Contrast"] = ''
+# sp_comb[sp_comb$Group_1 == 'ingroup', "Contrast"] = 'in_vs_in'
+# sp_comb[sp_comb$Group_1 == 'outgroup', "Contrast"] = 'out_vs_out'
+# sp_comb[sp_comb$Group_1 != sp_comb$Group_2, "Contrast"]  = 'in_vs_out'
+
+```
+
+
+```{r}
+# sp_comb %>%
+#   # filter(Contrast == TRUE) %>% 
+#   ggplot(aes(x = Contrast, y = P))+
+#   geom_violin()+
+#   geom_point()
+# 
+# 
+# sp_comb %>%
+#   arrange(Species_1) %>% 
+#   mutate(Species_1 = as.factor(Species_1)) %>% 
+#   arrange(Species_2) %>% 
+#   mutate(Species_2 = as.factor(Species_2)) %>% 
+#   ggplot(aes(x = Species_1, y = Species_2, fill = P<0.005))+
+#   geom_tile()+
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+#   
+# write.csv(sp_comb, file = './pvals.csv')
+```
+
+
+
+```{r}
+# tmp = sp_comb_list[[3]]
+# tmp$test.res$p.value
+# 
+# plt <- plot_ecdf_ks_prep(prep = tmp)
+# 
+# plt+coord_cartesian(xlim = c(0, 2.5))
+```
+
+
+```{r}
+
+
+# walk(sp_comb_list, function(tmp){
+#   if(tmp$test.res$p.value < 0.05){
+#     plt <- plot_ecdf_ks_prep(prep = tmp)
+#     pltname <- paste0(
+#       tmp$group1, 
+#       '_vs_',
+#       tmp$group2
+#     )
+#     ggsave(paste0("./output/",pltname,".svg"), plt)
+#   }
+# })
+
+
+
+```
+
+
+
+
+
+
+
+# work with phylogenetic tree
+
+```{r}
+
+# given an input species find it's path to the root
+leaf_to_root  <- function(
+  df = tree_df,
+  leaf = 'Brassica_tournefortii'){
+  # set up maximum length vectors (clipped later)
+  # (should not matter here but better practice than growing them)
+  path_branch = rep(NaN, nrow(df))
+  path_parent = rep(NaN, nrow(df))
+  path_node = rep(NaN, nrow(df))
+  
+  # define starting node
+  i_node = unlist(df[df$label == leaf, ])["node"]
+  
+  # allow for every branch to be traversed (will not be)
+  for(i in seq(1, nrow(df))){
+    # print(i)
+    j_branch = unlist(df[df$node == i_node, 'branch.length'])
+    j_parent = unlist(df[df$node == i_node, 'parent'])
+    j_node = unlist(df[df$node == i_node, 'node'])
+    
+    
+    # check if 'node' == 'parent'
+    if (i_node == j_parent){
+      break
+    } else {
+      # print(unlist(df[df$node == j_node, ]))   
+      
+      path_branch[i] = j_branch
+      path_parent[i] = j_parent
+      path_node[i]   = j_node
+      
+      i_node <- j_parent
+    }
+  }
+  
+  # trim unused indices in vectors
+  path_branch = path_branch[1:i-1]
+  path_parent = path_parent[1:i-1]
+  path_node = path_node[1:i-1]
+  
+  out = data.frame(
+    'from' = path_node,
+    'to' = path_parent,
+    'branch.length' = path_branch
+  )
+  return(out)
+}
+
+tree_df[is.na(tree_df$branch.length), 'branch.length'] <- 1
+
+# tree_df
+```
+
+```{r}
+# reverse tree so you can go from parent node to child nodes
+
+parent = 75
+df = tree_df
+
+pr_df <- df[, c("parent", "node", "branch.length")] %>% 
+  pivot_wider(names_from = "node", values_from = "branch.length")
+
+# normalize lengths to percents
+pr_df_sums <- unlist(
+  map(seq(1, nrow(pr_df)), function(i){
+    pr_df[i, ] %>% select(-parent) %>% sum(na.rm=TRUE)
+  })
+)
+
+br.len_cols = names(pr_df)[names(pr_df) != 'parent']
+pr_df[, br.len_cols] <- pr_df[, br.len_cols]/pr_df_sums
+
+
+
+# Brassica_tournefortii 1--75--74--
+# Erucastrum_virgatum   2-/    |
+# Raphanus_raphanistrum 3------/
+
+
+# sp_list <- c('Brassica_tournefortii', 
+#              'Erucastrum_virgatum', 
+#              'Raphanus_raphanistrum',
+#              'Raffenaldia_primuloides' )
+
+
+
+sp_list <- unique(M$Species)
+sp_list <- sp_list[!(sp_list %in% c("", "1.000000"))]
+
+sp_path_list <- map(
+  sp_list, 
+  function(e){
+    leaf_to_root(df = tree_df, leaf = e)
+    }
+  )
+
+
+get_sp_sample_probs <- function(target_node = 74){
+  # sweep over the path lists for all species. If the target node is a parent of 
+  # the species use `pr_df` to look up the probs for sampling at each branch.
+  # return the product of all the probabilities for each species
+  
+  # go over all species looking for a match
+  pr_species_sample <- map(sp_path_list, function(ith_sp_path){
+    # check if there is a connection to the target node.
+    # if not return 0
+    if (!(TRUE %in% (ith_sp_path$to == target_node))){
+      ith_sp_pr <- 0
+    } else {
+      # get all connections up to the one pointing to the target node
+      ith_sp_path = ith_sp_path[seq(1, which(ith_sp_path$to == target_node)), ]
+      
+      #go over all rows in ith_sp_path
+      ith_sp_pr <- map(seq(1, nrow(ith_sp_path)), 
+                       function(j){
+        # get the pr to add to the list
+        jth_pr <- unlist(
+          pr_df[pr_df$parent == ith_sp_path[j, "to"], 
+                as.character(ith_sp_path[j, "from"])]
+          )  
+      }) %>% 
+        unlist()
+      # the last item of the cumulative product is the product of the array
+      ith_sp_pr <- cumprod(ith_sp_pr)[length(ith_sp_pr)]
+    }
+    return(as.numeric(ith_sp_pr))
+  }) %>% 
+    unlist()
+  
+  return(pr_species_sample)
+}
+
+
+```
+
+
+```{r}
+# compute percents for each branch point
+for(parent in sort(unique(tree_df$parent))){
+  print(parent)
+}
+
+
+parent_nodes <- sort(unique(tree_df$parent))
+
+pr_at_each_branch_point <- do.call(
+  rbind, 
+  map(
+    parent_nodes, 
+    function(parent){
+      get_sp_sample_probs(target_node = parent)
+      }
+    )
+  )
+
+pr_at_each_branch_point <- data.frame(pr_at_each_branch_point)
+
+names(pr_at_each_branch_point) <- unlist(sp_list)
+pr_at_each_branch_point$parent_nodes <- parent_nodes
+
+
+```
+
+
+testing if sample prob calculations worked...
+success!
+```{r}
+# Brassica_tournefortii 1--75--74--
+# Erucastrum_virgatum   2-/    |
+# Raphanus_raphanistrum 3------/
+
+tmp <- pr_at_each_branch_point %>% 
+  filter(parent_nodes == 75)
+
+tmp[, tmp>0]
+
+
+tmp <- pr_at_each_branch_point %>% 
+  filter(parent_nodes == 74)
+
+tmp[, tmp>0]
+
+```
+
+
+
+```{r}
+# find the last shared ingroup node
+leaf_to_root(df = tree_df, leaf = "Arabidopsis_thaliana")
+
+leaf_to_root(df = tree_df, leaf = "Orychrophragmus_violaceae")
+
+leaf_to_root(df = tree_df, leaf = "Brassica_cretica")
+```
+
+
+```{r}
+
+# I think 62 is the right node. It should have all the outgroup species
+
+pr_at_each_branch_point %>% 
+  filter(parent_nodes == 62) %>% t()
+
+
+
+```
+
+
+
+getting a sample with only the ingroup
+```{r}
+ingroup_sp <- M %>% 
+  filter(Group == "ingroup") %>% 
+  select(Species) %>% 
+  distinct() %>% 
+  unlist()
+
+
+outgroup_sp <- M %>% 
+  filter(Group == "outgroup") %>% 
+  select(Species) %>% 
+  distinct() %>% 
+  unlist()
+
+outgroup_mask = (rowSums(pr_at_each_branch_point[, outgroup_sp]) > 0)
+
+# highest_parent_node <- pr_at_each_branch_point[!outgroup_mask, 'parent_nodes'] %>% 
+#   max()
+# write.csv(pr_at_each_branch_point, "./pr_at_each_branch_point.csv")
+
+
+
+
+# exclude rows with outgroup values
+temp <- pr_at_each_branch_point[!outgroup_mask, ingroup_sp]
+temp <- temp %>% t()
+
+# which node contains a non-zero percent for all the ingroup species (but none 
+# of the outgroup species)
+which_node <- map(seq(1, ncol(temp)), function(i){
+  if(F %in% temp[, i] > 0){
+    
+  }else{
+    return(i)  
+  }
+}) %>% unlist()
+
+ingroup_pr_array <- t(temp)[which_node, ]
+
+
+
+
+
+```
+
+## Use ingroup pr array to simulate ancestral distribution
+
+```{r}
+sim_length <- M %>% filter(Group == 'ingroup') %>% group_by(Species) %>% tally() %>% select(n)
+sim_length <- round(mean(sim_length$n))
+
+
+sim_ingroup_dist <- comingle_KS(
+  df = M,
+  species = names(ingroup_pr_array),
+  weights = ingroup_pr_array,
+  replace = T,
+  length_out = sim_length)
+
+
+
+comingle_KS(
+  df = M,
+  species = names(ingroup_pr_array),
+  weights = ingroup_pr_array,
+  replace = T,
+  length_out = sim_length)
+
+
+# simulate a population of distributions
+n_sims = 100
+
+
+sim_ingroup_dist_resampled <- do.call(
+  rbind, 
+  map(seq(n_sims), function(i){
+    out <- data.frame(KS = comingle_KS(
+      df = M,
+      species = names(ingroup_pr_array),
+      weights = ingroup_pr_array,
+      replace = T,
+      length_out = sim_length)
+      )
+    out$i <- i
+    return(out)
+    })
+  )
+
+
+
+
+ggplot(sim_ingroup_dist_resampled, aes(x = KS, group = i))+
+  geom_density(size = 0.5)
+```
+
+
+
+
+
+
+```{r}
+
+
+
+
+
+
+pr_df
+
+
+leaf_nodes <- df$node[!(df$node %in% intersect(df$parent, df$node))]
+
+
+
+
+todo_list <- list()
+
+temp <- pr_df[pr_df$parent == target_node, ] %>% 
+  select(-parent) %>% 
+  gather(key = 'child', value = 'pr') %>% 
+  na.omit()
+
+temp['processed']
+
+
+
+
+
+
+# at 74
+# find children 3, 74
+
+# is child a leaf?
+
+# if not 
+
+pr_df[(pr_df$parent %in% c(1,2,75,74)), c("parent", "1", "2", "3", "74", "75")]
+
+
+
+
+
+
+
+
+
+
+
+tree_df
+
+pr_df_update = pr_df
+pr_df_update[, br.len_cols] = 0
+
+
+
+sum(pr_df[, c("1", "2")], na.rm = TRUE)
+
+
+
+
+
+
+
+
+df[df$parent == parent, ]
+
+# pr matrix each row is a node, each column is the precent of each node that
+pr_mat <- matrix(
+  nrow = max(df$node), 
+  ncol = max(df$node))
+
+```
+
+
+
+
+```{r}
+# set up df to hold species mix at node
+sp_percents = data.frame('node' = seq(1, max(tree_df$parent, tree_df$node)))
+
+
+
+
+
+
+for(sp in sp_matches$tr_sp){
+  sp_percents[[sp]] = 0
+}
+
+i = 57
+
+#FIXME
+for(i in seq(1, 55)){#nrow(tree_df))){
+  i_label  = unlist(tree_df[tree_df$node == i, 'label'])
+  i_length = unlist(tree_df[tree_df$node == i, 'branch.length'])
+  
+  if(!(i_label %in% c('', '1.000000'))){
+    sp_percents[(sp_percents$node == i), i_label] <- i_length
+  }
+  
+  
+  tree_df[tree_df$node == i, ]
+
+
+}
+
+tree_df[57, ]
+
+
+tree_df %>% 
+  select(-label) %>% 
+  spread(key = parent, value = branch.length)
+
+
+
+```
+
+
+
+
+```{r}
+
+
+
+
+
+
+tree_df %>% filter(label != '1.000000') %>% select(-branch.length, -parent)
+
+
+
+get_sp_lengths <- function(df = tree_df, sp_leaf){
+  sp_path <- leaf_to_root(df = df, leaf = sp_leaf)
+  sp_path[1, 'branch.length'] <- 1
+  sp_path <- sp_path[, c('from', 'branch.length')]
+  names(sp_path) <- c('node', sp_leaf)
+  return(sp_path)
+}
+
+
+sp_percents = data.frame('node' = seq(1, max(tree_df$parent, tree_df$node)))
+
+
+for(sp in unique(sp_matches$tr_sp)){
+  sp_percents <- full_join(sp_percents, 
+                           get_sp_lengths(df = tree_df, sp_leaf = sp))
+}
+
+
+
+# convert lengths to percents
+
+sp_percents %>% View()
+
+
+
+
+
+map(list("Brassica_cretica",
+         "Caulanthus_amplexicaulis-PatBMAP"), 
+    function(e){leaf_to_root(df = tree_df, leaf = e)})
+
+
+for(e in unique(M$Species)){
+  print(e)
+  print(leaf_to_root(df = tree_df, leaf = e))
+}
+
+
+
+
+
+map(tr_sp, function(i){
+  if(i %in% ks_sp){
+    return(i)
+  }
+})
+
+
+
+M[M$Group == 'ingroup', 'Species'] %>% unique()
+
+
+
+
+
+"Orychrophragmus_violaceae-cdhitest90"
+
+M[M$Group == 'outgroup', 'Species'] %>% unique()
+
+                 
+                 
+
+
+```
+
+
+
+

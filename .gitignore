@@ -1,0 +1,12 @@
+*.Gtre
+*.Gtxt
+*.Gcsv
+
+*.Gpptx
+*.Gsvg
+*.Gtiff
+*.Rdata
+output/*
+
+
+
