@@ -2,7 +2,12 @@
 title: "KSPlots"
 author: "Daniel Kick"
 date: "12/9/2022"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
 ---
 
 ```{r setup, include=FALSE}
@@ -732,6 +737,26 @@ which_node <- map(seq(1, ncol(temp)), function(i){
 ingroup_pr_array <- t(temp)[which_node, ]
 ```
 
+# repeat for outgroup pr_array
+
+temp <- pr_at_each_branch_point[outgroup_mask, outgroup_sp]
+temp <- temp %>% t()
+
+# which node contains a non-zero percent for all the ingroup species (but none 
+# of the outgroup species)
+which_node <- map(seq(1, ncol(temp)), function(i){
+  if(F %in% temp[, i] > 0){
+    # do noting; ith node is not the target node
+  }else{
+    return(i)  
+  }
+}) %>% unlist()
+
+outgroup_pr_array <- t(temp)[which_node, ]
+
+```
+
+
 ## Use ingroup pr array to simulate ancestral distribution
 ```{r}
 sim_length <- M %>% filter(Group == 'ingroup') %>% group_by(Species) %>% tally() %>% select(n)
@@ -770,3 +795,136 @@ sim_ingroup_dist_resampled <- do.call(
 ggplot(sim_ingroup_dist_resampled, aes(x = KS, group = i))+
   geom_density(size = 0.5)
 ```
+
+
+
+
+
+```{r}
+# with Orychrophragmus_violaceae
+
+outgroup_sim_length <- M %>% filter(Group == 'outgroup') %>% group_by(Species) %>% tally() %>% select(n)
+outgroup_sim_length <- round(mean(sim_length))
+
+
+sim_outgroup_dist <- comingle_KS(
+  df = M,
+  species = names(outgroup_pr_array),
+  weights = outgroup_pr_array,
+  replace = T,
+  length_out = outgroup_sim_length)
+
+ggplot()+geom_density(aes(x = sim_outgroup_dist))
+```
+
+
+
+```{r}
+# WITHOUT Orychrophragmus_violaceae
+
+outgroup_sim_length_wo_ory <- M %>% 
+  filter(Group == 'outgroup') %>% 
+  filter(Species != 'Orychrophragmus_violaceae') %>% 
+  group_by(Species) %>% tally() %>% select(n)
+outgroup_sim_length_wo_ory <- round(mean(sim_length))
+
+
+outgroup_pr_array_wo_ory <- outgroup_pr_array[names(outgroup_pr_array) != 'Orychrophragmus_violaceae']
+
+sim_outgroup_dist_wo_ory <- comingle_KS(
+  df = M,
+  species = names(outgroup_pr_array_wo_ory),
+  weights = outgroup_pr_array_wo_ory,
+  replace = T,
+  length_out = outgroup_sim_length_wo_ory)
+
+ggplot()+geom_density(aes(x = sim_outgroup_dist_wo_ory))
+```
+
+```{r}
+# Plot all three sim dist for comparison
+
+ggplot()+
+  geom_density(aes(x = sim_ingroup_dist), color = 'blue')+
+  geom_density(aes(x = sim_outgroup_dist), color = 'red')+
+  geom_density(aes(x = sim_outgroup_dist_wo_ory), color = 'orange')
+
+# don't do outgroup wo ory
+```
+
+
+# Ingroup vs Outgroup
+```{r}
+ggplot()+
+  geom_density(aes(x = sim_ingroup_dist), color = 'blue')+
+  geom_density(aes(x = sim_outgroup_dist), color = 'red')
+```
+
+```{r}
+temp <- data.frame(
+  KS = c(sim_ingroup_dist, sim_outgroup_dist),
+  Dist = c(rep("ingroup", times = length(sim_ingroup_dist)),
+           rep("outgroup", times = length(sim_outgroup_dist))
+                    ))
+
+
+tmp_prep <- prep_ecdf_ks(
+  df = temp,
+  data.col = "KS",
+  group.col = "Dist",
+  group1 = "ingroup",
+  group2 =  "outgroup",
+  colors = c("#4d4d4d",
+             #"#67a9cf",
+             "#1c9099"), 
+  downsample_dist = TRUE)
+
+plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_prep$test.res
+```
+
+
+```{r}
+# Ingroup vs ory
+
+temp2 <- M %>% select(-Group) %>% filter(Species == 'Orychrophragmus_violaceae') %>% rename(Dist = Species)
+
+temp2 <- rbind(temp, temp2)
+
+
+
+# vs ingroup
+
+tmp_prep <- prep_ecdf_ks(
+  df = temp2,
+  data.col = "KS",
+  group.col = "Dist",
+  group1 = "Orychrophragmus_violaceae",
+  group2 =  "ingroup",
+  colors = c("#4d4d4d",
+             #"#67a9cf",
+             "#1c9099"), 
+  downsample_dist = TRUE)
+
+plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_prep$test.res
+
+# vs outgroup
+
+tmp_prep <- prep_ecdf_ks(
+  df = temp2,
+  data.col = "KS",
+  group.col = "Dist",
+  group1 = "Orychrophragmus_violaceae",
+  group2 =  "outgroup",
+  colors = c("#4d4d4d",
+             "#67a9cf"#,
+             # "#1c9099"
+             ), 
+  downsample_dist = TRUE)
+
+plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_prep$test.res
+```
+
+
