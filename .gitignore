@@ -1,11 +1,12 @@
-*.Gtre
-*.Gtxt
-*.Gcsv
+*.tre
+*.txt
+*.csv
 
-*.Gpptx
-*.Gsvg
-*.Gtiff
+*.pptx
+*.svg
+*.tiff
 *.Rdata
+.Rhistory
 output/*
 
 
