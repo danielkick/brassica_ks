@@ -22,18 +22,17 @@ library(bayestestR)
 # for easy italics in ggplots
 library(mdthemes) 
 theme_set(mdthemes::md_theme_minimal())
+
+show_demo_plots = FALSE
 ```
 
 # Load in data
 Load in KS
 ```{r}
-M <- read.table("./newgrouped-boleks.txt")
-names(M) <- c("Species", "KS", "Group")
-
-Mprime <- read.table("./Arabidopsis_thaliana.ks.txt")
-names(Mprime) <- c("Species", "KS", "Group")
-
-M <- rbind(M, Mprime)
+M <- read.table("./inst/extdata/fullks-subtribe.txt")
+names(M) <- c("Species", "KS", "Group", "Subtribe")
+# Subtribe == NA are in the Group == outgroup
+M[is.na(M$Subtribe), c("Subtribe")] <- "outgroup"
 
 # ks less than 3
 M <- M[M$KS <= 3, ]
@@ -42,7 +41,7 @@ M <- M[M$KS <= 3, ]
 
 Load phylogenetic tree
 ```{r}
-apeTree <- ape::read.tree(file = './apro.tre')
+apeTree <- ape::read.tree(file = './inst/extdata/apro.tre')
 # plot(apeTree)
 
 tree_df <- as_tibble(apeTree)
@@ -131,16 +130,18 @@ test_arr <- comingle_KS(
   replace = T,
   length_out = 1000)
 
-ggplot(M[M$Species %in% species, ])+
-  geom_density(aes(x = KS, fill = Species, color = Species), alpha = 0.5)+
-  geom_density(data = data.frame(KS = test_arr
-                                 #, Species = rep('Mix', times = length(test_arr))
-                                 ),
-               aes(x = KS), color = 'Black')+
-  facet_grid(Species~.)+
-  scale_fill_manual(values = c('Purple', 'Orange', 'Blue'))+
-  scale_color_manual(values = c('Purple', 'Orange', 'Blue'))+
-  theme(legend.position = 'bottom')
+if(show_demo_plots){
+  ggplot(M[M$Species %in% species, ])+
+    geom_density(aes(x = KS, fill = Species, color = Species), alpha = 0.5)+
+    geom_density(data = data.frame(KS = test_arr
+                                   #, Species = rep('Mix', times = length(test_arr))
+                                   ),
+                 aes(x = KS), color = 'Black')+
+    facet_grid(Species~.)+
+    scale_fill_manual(values = c('Purple', 'Orange', 'Blue'))+
+    scale_color_manual(values = c('Purple', 'Orange', 'Blue'))+
+    theme(legend.position = 'bottom') 
+}
 ```
 
 Demonstrate use for an arbitrary number of species (ingroup) 
@@ -156,14 +157,16 @@ test_arr <- comingle_KS(
   replace = T,
   length_out = 10000)
 
-ggplot(M[M$Species %in% species, ])+
-  geom_density(aes(x = KS, fill = Species), alpha = 0.5)+
-  geom_density(data = data.frame(KS = test_arr
-                                 #, Species = rep('Mix', times = length(test_arr))
-                                 ),
-               aes(x = KS), color = 'Blue')+
-  facet_wrap(Species~.)+
-  theme(legend.position = 'none')
+if(show_demo_plots){
+  ggplot(M[M$Species %in% species, ])+
+    geom_density(aes(x = KS, fill = Species), alpha = 0.5)+
+    geom_density(data = data.frame(KS = test_arr
+                                   #, Species = rep('Mix', times = length(test_arr))
+                                   ),
+                 aes(x = KS), color = 'Blue')+
+    facet_wrap(Species~.)+
+    theme(legend.position = 'none')
+}
 ```
 
 Repeat for outgroup
@@ -178,38 +181,42 @@ test_arr_outgroup <- comingle_KS(
   replace = T,
   length_out = 10000)
 
-
-ggplot(M[M$Species %in% species, ])+
-  geom_density(aes(x = KS, fill = Species), alpha = 0.5)+
-  geom_density(data = data.frame(KS = test_arr
-                                 #, Species = rep('Mix', times = length(test_arr))
-                                 ),
-               aes(x = KS), color = 'Blue')+
-  facet_wrap(Species~.)+
-  theme(legend.position = '')
+if(show_demo_plots){
+  ggplot(M[M$Species %in% species, ])+
+    geom_density(aes(x = KS, fill = Species), alpha = 0.5)+
+    geom_density(data = data.frame(KS = test_arr
+                                   #, Species = rep('Mix', times = length(test_arr))
+                                   ),
+                 aes(x = KS), color = 'Blue')+
+    facet_wrap(Species~.)+
+    theme(legend.position = '')
+}
 ```
 
 Demonstrate capability of resampling distribuiton 
 ```{r}
-# NOTE! to showcase variability I've decreased the sample size
-resample_list <- purrr::map(1:100, function(i){
-  comingle_KS(
-    df = M,
-    species = species,
-    weights = rep(1/length(species), times = length(species)),
-    replace = T,
-    length_out = 100)  
-})
-
-i = 1
-do.call(rbind, purrr::map(seq_along(resample_list), function(i){
-  out = data.frame(KS = resample_list[[i]])
-  out[['Rep']] = as.character(i)
-  return(out)
-})) %>% ggplot(aes(x = KS#, color = Rep
-                 , group = Rep
-                 ))+
-  geom_density()
+if(show_demo_plots){
+  # NOTE! to showcase variability I've decreased the sample size
+  resample_list <- purrr::map(1:100, function(i){
+    comingle_KS(
+      df = M,
+      species = species,
+      weights = rep(1/length(species), times = length(species)),
+      replace = T,
+      length_out = 100)  
+  })
+  
+  if(show_demo_plots){
+    do.call(rbind, purrr::map(seq_along(resample_list), function(i){
+      out = data.frame(KS = resample_list[[i]])
+      out[['Rep']] = as.character(i)
+      return(out)
+    })) %>% ggplot(aes(x = KS#, color = Rep
+                     , group = Rep
+                     ))+
+      geom_density()
+  }
+}
 ```
 
 
@@ -294,7 +301,8 @@ prep_ecdf_ks <- function(
   return(out)
 }
 
-plot_ecdf_ks_prep <- function(prep){
+# The fast option will speed up plotting by limiting the number of observations 
+plot_ecdf_ks_prep <- function(prep, fast = TRUE, obs_limit = 1000){
   group1 = prep$group1
   group2 = prep$group2
   test.res = prep$test.res
@@ -304,6 +312,11 @@ plot_ecdf_ks_prep <- function(prep){
   x1 = prep$x1
   y1 = prep$y1
   colors = prep$colors
+  
+  if(fast){
+    mask <- round(seq(1, nrow(graph.df), length.out = obs_limit))
+    graph.df <- graph.df[mask, ]
+    }
   
   plt <- 
     ggplot(graph.df)+
@@ -338,8 +351,10 @@ tmp_prep <- prep_ecdf_ks(
              "#1c9099"), 
   downsample_dist = TRUE)
 
-plot_ecdf_ks_prep(prep = tmp_prep)
-tmp_prep$test.res
+if(show_demo_plots){
+  plot_ecdf_ks_prep(prep = tmp_prep)
+  tmp_prep$test.res
+}
 ```
 
 Demonstrate use in conjunction with comingled data
@@ -368,8 +383,10 @@ tmp_prep <- prep_ecdf_ks(
              "#1c9099"), 
   downsample_dist = TRUE)
 
-plot_ecdf_ks_prep(prep = tmp_prep)
-tmp_prep$test.res
+if(show_demo_plots){
+  plot_ecdf_ks_prep(prep = tmp_prep)
+  tmp_prep$test.res
+}
 ```
 
 
@@ -380,13 +397,15 @@ test_arr_diff <- (sort(test_arr) - sort(test_arr_outgroup))
 ci_hdi <- ci(test_arr_diff, method = "HDI")
 ci_eti <- ci(test_arr_diff, method = "ETI")
 
-data.frame(KS = test_arr_diff) %>% 
-  ggplot()+
-  geom_vline(xintercept =  0, color = 'blue', linetype = 'dashed')+
-  geom_vline(xintercept =  ci_hdi$CI_low,  color = 'firebrick')+
-  geom_vline(xintercept =  ci_hdi$CI_high, color = 'firebrick')+
-  geom_density(aes(x = KS))+
-  coord_cartesian(xlim = c(-0.25, 0.25))
+if(show_demo_plots){
+  data.frame(KS = test_arr_diff) %>% 
+    ggplot()+
+    geom_vline(xintercept =  0, color = 'blue', linetype = 'dashed')+
+    geom_vline(xintercept =  ci_hdi$CI_low,  color = 'firebrick')+
+    geom_vline(xintercept =  ci_hdi$CI_high, color = 'firebrick')+
+    geom_density(aes(x = KS))+
+    coord_cartesian(xlim = c(-0.25, 0.25))
+}
 ```
 
 
@@ -429,11 +448,6 @@ if (file.exists("./sp_comb_list.Rdata")){
 ```
 
 ```{r}
-# sp_comb_list[[1]]$test.res$p.value
-# sp_comb_list[[2]]$test.res$p.value
-
-# plot_ecdf_ks_prep(prep = tmp_prep)
-
 # merge in ingroup/outgroup labels
 M_labs <- M %>% select(-KS) %>% distinct()
 sp_comb <-
@@ -444,69 +458,7 @@ sp_comb <-
   left_join(rename(M_labs, 
                    Species_2 = Species,
                    Group_2 = Group))
-
-# sp_comb["P"] = unlist(map(sp_comb_list, function(e){e$test.res$p.value}))
-# 
-# 
-# sp_comb["Contrast"] = ''
-# sp_comb[sp_comb$Group_1 == 'ingroup', "Contrast"] = 'in_vs_in'
-# sp_comb[sp_comb$Group_1 == 'outgroup', "Contrast"] = 'out_vs_out'
-# sp_comb[sp_comb$Group_1 != sp_comb$Group_2, "Contrast"]  = 'in_vs_out'
-
 ```
-
-
-```{r}
-# sp_comb %>%
-#   # filter(Contrast == TRUE) %>% 
-#   ggplot(aes(x = Contrast, y = P))+
-#   geom_violin()+
-#   geom_point()
-# 
-# 
-# sp_comb %>%
-#   arrange(Species_1) %>% 
-#   mutate(Species_1 = as.factor(Species_1)) %>% 
-#   arrange(Species_2) %>% 
-#   mutate(Species_2 = as.factor(Species_2)) %>% 
-#   ggplot(aes(x = Species_1, y = Species_2, fill = P<0.005))+
-#   geom_tile()+
-#   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#   
-# write.csv(sp_comb, file = './pvals.csv')
-```
-
-
-
-```{r}
-# tmp = sp_comb_list[[3]]
-# tmp$test.res$p.value
-# 
-# plt <- plot_ecdf_ks_prep(prep = tmp)
-# 
-# plt+coord_cartesian(xlim = c(0, 2.5))
-```
-
-
-```{r}
-
-
-# walk(sp_comb_list, function(tmp){
-#   if(tmp$test.res$p.value < 0.05){
-#     plt <- plot_ecdf_ks_prep(prep = tmp)
-#     pltname <- paste0(
-#       tmp$group1, 
-#       '_vs_',
-#       tmp$group2
-#     )
-#     ggsave(paste0("./output/",pltname,".svg"), plt)
-#   }
-# })
-
-
-
-```
-
 
 # Custom Functions for the Phylogenetic Tree
 Find path between root and leaf
@@ -603,7 +555,6 @@ get_sp_sample_probs <- function(target_node = 74){
 
 ```{r}
 tree_df[is.na(tree_df$branch.length), 'branch.length'] <- 1
-
 # tree_df
 ```
 
@@ -641,10 +592,6 @@ sp_path_list <- map(
 
 ```{r}
 # compute percents for each branch point
-# for(parent in sort(unique(tree_df$parent))){
-#   print(parent)
-# }
-
 parent_nodes <- sort(unique(tree_df$parent))
 
 pr_at_each_branch_point <- do.call(
@@ -890,7 +837,7 @@ tmp_prep$test.res
 ```{r}
 # Ingroup vs ory
 
-temp2 <- M %>% select(-Group) %>% filter(Species == 'Orychrophragmus_violaceae') %>% rename(Dist = Species)
+temp2 <- M %>% select(-Group, -Subtribe) %>% filter(Species == 'Orychrophragmus_violaceae') %>% rename(Dist = Species)
 
 temp2 <- rbind(temp, temp2)
 
