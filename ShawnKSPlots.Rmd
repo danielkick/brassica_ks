@@ -918,3 +918,339 @@ tmp_plt <- tmp_plt+
 tmp_plt
 ```
 
+
+# Contrast Subtribes
+
+```{r}
+# setup utility functions
+get_subtribe_pr_array <- function(subtribe_name = "Cakile"){
+  # find all the species in a given subtribe
+  ingroup_sp <- M %>% 
+    filter(Subtribe == subtribe_name) %>% 
+    select(Species) %>% 
+    distinct() %>% 
+    unlist()
+  # check if the mix is actually just a single species (Subtribe Psychine)
+  if(length(ingroup_sp) == 1){
+    # If there's only a single species
+    ingroup_pr_array <- 1.00
+    names(ingroup_pr_array) <- ingroup_sp
+  }else{
+    # then define the outgroup as all those not in the ingroup
+    outgroup_sp <- M %>% 
+      filter(!(Species  %in% ingroup_sp)) %>% 
+      select(Species) %>% 
+      distinct() %>% 
+      unlist()
+    
+    outgroup_mask = (rowSums(pr_at_each_branch_point[, outgroup_sp]) > 0)
+    
+    # exclude rows with outgroup values
+    temp <- pr_at_each_branch_point[!outgroup_mask, ingroup_sp]
+    temp <- temp %>% t()
+    
+    # which node contains a non-zero percent for all the ingroup species (but none 
+    # of the outgroup species)
+    which_node <- map(seq(1, ncol(temp)), function(i){
+      if(F %in% temp[, i] > 0){
+        # do noting; ith node is not the target node
+      }else{
+        return(i)  
+      }
+    }) %>% unlist()
+    
+    ingroup_pr_array <- t(temp)[which_node, ]
+    
+
+  }
+  return(ingroup_pr_array)  
+}
+
+get_subtribe_sim_length <- function(subtribe_name = "Cakile"){
+  sim_length <- M %>% filter(Subtribe == subtribe_name) %>% group_by(Species) %>% tally() %>% select(n)
+  sim_length <- round(mean(sim_length$n))
+  return(sim_length)
+}
+
+get_subtribe_sim_dist <- function(subtribe_pr_array, sim_length){
+  ingroup_sp_names <- names(ingroup_pr_array)
+  
+  # if there's only one species in this set return in from M
+  if(length(ingroup_sp_names) == 1){
+    sim_ingroup_dist <- M %>% 
+      filter(Species == ingroup_sp_names) %>% 
+      select(KS) %>% 
+      unlist() %>% 
+      sort()
+  }else{
+    sim_ingroup_dist <- comingle_KS(
+      df = M,
+      species = ingroup_sp_names,
+      weights = ingroup_pr_array,
+      replace = T,
+      length_out = sim_length)    
+  }
+  return(sim_ingroup_dist) 
+}
+
+wrapper_subtribe_sim_dist <- function(subtribe_name = "Cakile"){
+  subtribe_pr_array <- get_subtribe_pr_array(  subtribe_name = subtribe_name)
+  sim_length        <- get_subtribe_sim_length(subtribe_name = subtribe_name)
+  
+  output_dist       <- get_subtribe_sim_dist(subtribe_pr_array = subtribe_pr_array, 
+                                             sim_length = sim_length)  
+  return(output_dist)
+}
+
+
+# Get dist for all subtribes
+needed_subtribes <- c("Brassica", "Cakile", "Crambe", "Savignya", "Zilla", "Psychine", "Vella")
+
+needed_subtribe_dists <- map(
+  needed_subtribes, 
+  function(ith_subtribe){
+    # print(ith_subtribe)
+    out = wrapper_subtribe_sim_dist(subtribe_name = ith_subtribe)
+    return(out)
+    })
+
+names(needed_subtribe_dists) <- needed_subtribes
+
+# Set up all comparisons 
+subtribe_comparisons <- rbind(
+  data.frame(
+    Var1 = c("Vella", "Zilla", "Psychine", "Savignya", "Cakile", "Crambe"),
+    Var2 = c("Zilla", "Psychine", "Savignya", "Cakile", "Crambe", "Brassica")
+  ),
+  expand.grid(
+  "Brassica", 
+  c("Cakile", "Crambe", "Savignya", "Zilla", "Psychine", "Vella")
+  )
+)
+  
+needed_subtribe_plts <- map(
+  seq(1, nrow(subtribe_comparisons)), 
+  function(i){
+      
+    Group1 <- subtribe_comparisons[i, "Var1"]
+    Group2 <- subtribe_comparisons[i, "Var2"]
+    
+    KS1 <- needed_subtribe_dists[[Group1]]
+    KS2 <- needed_subtribe_dists[[Group2]]
+    
+    temp <- data.frame(
+      Dist = c(rep(Group1, times = length(KS1)),
+               rep(Group2, times = length(KS2))),
+      KS   = c(KS1, KS2)
+    )
+    
+    
+    tmp_prep <- prep_ecdf_ks(
+      df = temp,
+      data.col = "KS",
+      group.col = "Dist",
+      group1 = Group1,
+      group2 = Group2,
+      colors = c("#4d4d4d",
+                 "#67a9cf"
+                 ), 
+      downsample_dist = TRUE)
+    
+    tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+    
+    tmp_plt <- tmp_plt+
+      labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
+           subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
+      scale_color_manual(
+        values =  c("#4d4d4d", "#1c9099"),
+        limits = c(Group1, Group2),
+        labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
+      )+
+      md_theme_minimal()+
+      theme(legend.position = 'bottom')
+    
+    return(tmp_plt)
+})
+
+plt <- cowplot::plot_grid(plotlist = needed_subtribe_plts)
+ggsave("./output/subtribe_vs_subtribe.svg", plt, width = 11, height = 8.5)
+
+
+
+  
+
+extra_subtribe_plts_vs_ingroup <- map(
+  seq(1, length(needed_subtribe_dists)), 
+  function(i){
+      
+    Group1 <- names(needed_subtribe_dists)[i]
+    Group2 <- "ingroup"
+    
+    KS1 <- needed_subtribe_dists[[Group1]]
+    KS2 <- sim_ingroup_dist
+    
+    temp <- data.frame(
+      Dist = c(rep(Group1, times = length(KS1)),
+               rep(Group2, times = length(KS2))),
+      KS   = c(KS1, KS2)
+    )
+    
+    
+    tmp_prep <- prep_ecdf_ks(
+      df = temp,
+      data.col = "KS",
+      group.col = "Dist",
+      group1 = Group1,
+      group2 = Group2,
+      colors = c("#4d4d4d",
+                 "#67a9cf"
+                 ), 
+      downsample_dist = TRUE)
+    
+    tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+    
+    tmp_plt <- tmp_plt+
+      labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
+           subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
+      scale_color_manual(
+        values =  c("#4d4d4d", "#1c9099"),
+        limits = c(Group1, Group2),
+        labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
+      )+
+      md_theme_minimal()+
+      theme(legend.position = 'bottom')
+    
+    return(tmp_plt)
+})
+
+extra_subtribe_plts_vs_outgroup <- map(
+  seq(1, length(needed_subtribe_dists)), 
+  function(i){
+      
+    Group1 <- names(needed_subtribe_dists)[i]
+    Group2 <- "outgroup"
+    
+    KS1 <- needed_subtribe_dists[[Group1]]
+    KS2 <- sim_outgroup_dist
+    
+    temp <- data.frame(
+      Dist = c(rep(Group1, times = length(KS1)),
+               rep(Group2, times = length(KS2))),
+      KS   = c(KS1, KS2)
+    )
+    
+    
+    tmp_prep <- prep_ecdf_ks(
+      df = temp,
+      data.col = "KS",
+      group.col = "Dist",
+      group1 = Group1,
+      group2 = Group2,
+      colors = c("#4d4d4d",
+                 "#67a9cf"
+                 ), 
+      downsample_dist = TRUE)
+    
+    tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+    
+    tmp_plt <- tmp_plt+
+      labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
+           subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
+      scale_color_manual(
+        values =  c("#4d4d4d", "#1c9099"),
+        limits = c(Group1, Group2),
+        labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
+      )+
+      md_theme_minimal()+
+      theme(legend.position = 'bottom')
+    
+    return(tmp_plt)
+})
+
+
+plt <- cowplot::plot_grid(plotlist = extra_subtribe_plts_vs_ingroup)
+ggsave("./output/subtribe_vs_ingroup.svg", plt, width = 11, height = 8.5)
+plt <- cowplot::plot_grid(plotlist = extra_subtribe_plts_vs_outgroup)
+ggsave("./output/subtribe_vs_outgroup.svg", plt, width = 11, height = 8.5)
+
+
+```
+
+
+
+
+Since outgroup doesn't contain any of the ingroup data what would the ancestral distribution look like?
+```{r}
+# pr array for the root node:
+root_pr_array <- pr_at_each_branch_point[1, ] %>% select(-parent_nodes) 
+
+if(mean(root_pr_array > 0) != 1){
+  print("Root Node Incorrectly Selected")
+} else {
+  
+}
+
+root_pr_array <- unlist(root_pr_array)
+
+sim_length <- M %>% group_by(Species) %>% tally() %>% select(n)
+sim_length <- round(mean(sim_length$n))
+
+sim_ancestral_dist <- comingle_KS(
+  df = M,
+  species = names(root_pr_array),
+  weights = root_pr_array,
+  replace = T,
+  length_out = sim_length)
+
+
+
+
+extra_subtribe_plts_vs_ancestral <- map(
+  seq(1, length(needed_subtribe_dists)), 
+  function(i){
+      
+    Group1 <- names(needed_subtribe_dists)[i]
+    Group2 <- "Ancester"
+    
+    KS1 <- needed_subtribe_dists[[Group1]]
+    KS2 <- sim_ancestral_dist
+    
+    temp <- data.frame(
+      Dist = c(rep(Group1, times = length(KS1)),
+               rep(Group2, times = length(KS2))),
+      KS   = c(KS1, KS2)
+    )
+    
+    
+    tmp_prep <- prep_ecdf_ks(
+      df = temp,
+      data.col = "KS",
+      group.col = "Dist",
+      group1 = Group1,
+      group2 = Group2,
+      colors = c("#4d4d4d",
+                 "#67a9cf"
+                 ), 
+      downsample_dist = TRUE)
+    
+    tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+    
+    tmp_plt <- tmp_plt+
+      labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
+           subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
+      scale_color_manual(
+        values =  c("#4d4d4d", "#1c9099"),
+        limits = c(Group1, Group2),
+        labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
+      )+
+      md_theme_minimal()+
+      theme(legend.position = 'bottom')
+    
+    return(tmp_plt)
+})
+
+plt <- cowplot::plot_grid(plotlist = extra_subtribe_plts_vs_ancestral)
+ggsave("./output/subtribe_vs_ancestral.svg", plt, width = 11, height = 8.5)
+
+```
+
