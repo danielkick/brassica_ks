@@ -19,8 +19,9 @@ library(ape)
 library(tidytree)
 # used for computing HDI on distribution of differences
 library(bayestestR)
-
-theme_set(ggplot2::theme_minimal())
+# for easy italics in ggplots
+library(mdthemes) 
+theme_set(mdthemes::md_theme_minimal())
 ```
 
 # Load in data
@@ -737,6 +738,8 @@ which_node <- map(seq(1, ncol(temp)), function(i){
 ingroup_pr_array <- t(temp)[which_node, ]
 ```
 
+
+```{r}
 # repeat for outgroup pr_array
 
 temp <- pr_at_each_branch_point[outgroup_mask, outgroup_sp]
@@ -906,9 +909,32 @@ tmp_prep <- prep_ecdf_ks(
              "#1c9099"), 
   downsample_dist = TRUE)
 
-plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+
+
+
 tmp_prep$test.res
 
+tmp_plt <- tmp_plt+
+  labs(title = 'K-S Test *Orychrophragmus violaceae* vs Ingroup',
+       subtitle = 'p <2.2e-16')+
+  scale_color_manual(
+    values =  c("#4d4d4d", "#1c9099"),
+    limits = c("ingroup", "Orychrophragmus_violaceae"),
+    labels = c("Ingroup", "*Orychrophragmus violaceae*")
+  )+
+  md_theme_minimal()+
+  theme(legend.position = 'bottom')
+
+
+tmp_plt
+# ggsave(tmp_plt, './output/KS_Contrast_Oviolaceae_vs_ingroup.pdf')
+
+
+```
+
+
+```{r}
 # vs outgroup
 
 tmp_prep <- prep_ecdf_ks(
@@ -923,8 +949,25 @@ tmp_prep <- prep_ecdf_ks(
              ), 
   downsample_dist = TRUE)
 
-plot_ecdf_ks_prep(prep = tmp_prep)
-tmp_prep$test.res
-```
 
+tmp_prep$test.res
+
+tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+
+
+
+
+tmp_plt <- tmp_plt+
+  labs(title = 'K-S Test *Orychrophragmus violaceae* vs Outgroup',
+       subtitle = 'p <2.2e-16')+
+  scale_color_manual(
+    values =  c("#4d4d4d", "#1c9099"),
+    limits = c("outgroup", "Orychrophragmus_violaceae"),
+    labels = c("Outgroup", "*Orychrophragmus violaceae*")
+  )+
+  md_theme_minimal()+
+  theme(legend.position = 'bottom')
+
+tmp_plt
+```
 
