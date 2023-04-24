@@ -63,13 +63,21 @@ tree_df <- as_tibble(apeTree)
 
 Standardize naming
 ```{r}
+# Asked to remove on 2023-04-24
+# from the ks data: Sinapis_albaBMAP Eruca_vesicariaBMAP
+# and from the phylogeny: SinapisBMAP_alba ErucaBMAP_vesicaria
+
 # duplicate to ensure that the tree has the correct matches properly
+M <- M[M$Species != 'Sinapis_alba-BMAP', ]
+M <- M[M$Species != 'Eruca_vesicaria-BMAP', ]
+# M[M$Species == 'Sinapis_alba-BMAP', 'Species'] <-   'Sinapis_alba_BMAP'
+# M[M$Species == 'Eruca_vesicaria-BMAP', 'Species'] <-   'Eruca_vesicaria_BMAP'
 
-M[M$Species == 'Sinapis_alba-BMAP', 'Species'] <-   'Sinapis_alba_BMAP'
-M[M$Species == 'Eruca_vesicaria-BMAP', 'Species'] <-   'Eruca_vesicaria_BMAP'
+tree_df <- tree_df[(tree_df$label != "SinapisBMAP_alba"), ]
+tree_df <- tree_df[(tree_df$label != "ErucaBMAP_vesicaria"), ]
+# tree_df[(tree_df$label == "SinapisBMAP_alba"), 'label'] <- 'Sinapis_alba_BMAP'
+# tree_df[(tree_df$label == "ErucaBMAP_vesicaria"), 'label'] <- 'Eruca_vesicaria_BMAP'
 
-tree_df[(tree_df$label == "SinapisBMAP_alba"), 'label'] <- 'Sinapis_alba_BMAP'
-tree_df[(tree_df$label == "ErucaBMAP_vesicaria"), 'label'] <- 'Eruca_vesicaria_BMAP'
 
 
 for(sp in unique(M$Species)){
@@ -157,6 +165,11 @@ if(show_demo_plots){
 
 Demonstrate use for an arbitrary number of species (ingroup) 
 ```{r}
+# to have an equal number of samples in each array and ~10000 samples
+# this needs to be set based on the unique species in the ingroup and outgroup
+manual_length_out = 20*(14*40)
+
+
 M %>% group_by(Species) %>% tally()
 
 species <- unique(M[M$Group == 'ingroup', 'Species'])
@@ -166,7 +179,7 @@ test_arr <- comingle_KS(
   species = species,
   weights = rep(1/length(species), times = length(species)),
   replace = T,
-  length_out = 10000)
+  length_out = manual_length_out)
 
 if(show_demo_plots){
   ggplot(M[M$Species %in% species, ])+
@@ -180,6 +193,7 @@ if(show_demo_plots){
 }
 ```
 
+
 Repeat for outgroup
 ```{r}
 species <- unique(M[M$Group != 'ingroup', 'Species'])
@@ -190,7 +204,7 @@ test_arr_outgroup <- comingle_KS(
   species = species,
   weights = rep(1/length(species), times = length(species)),
   replace = T,
-  length_out = 10000)
+  length_out = manual_length_out)
 
 if(show_demo_plots){
   ggplot(M[M$Species %in% species, ])+
@@ -861,17 +875,17 @@ temp2 <- rbind(temp, temp2)
 
 # vs ingroup
 
-# tmp_prep <- prep_ecdf_ks(
-#   df = temp2,
-#   data.col = "KS",
-#   group.col = "Dist",
-#   group1 = "Orychrophragmus_violaceae",
-#   group2 =  "ingroup",
-#   colors = c("#000000",
-#              "#006400"), 
-#   downsample_dist = TRUE)
-# 
-# tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_prep <- prep_ecdf_ks(
+  df = temp2,
+  data.col = "KS",
+  group.col = "Dist",
+  group1 = "Orychrophragmus_violaceae",
+  group2 =  "ingroup",
+  colors = c("#000000",
+             "#006400"),
+  downsample_dist = TRUE)
+
+tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
 
 tmp_prep$test.res
 
@@ -899,21 +913,21 @@ ggsave("./output/Orychrophragmus_violaceae_vs_ingroup.svg", tmp_plt, width = 11,
 ```{r}
 # vs outgroup
 
-# tmp_prep <- prep_ecdf_ks(
-#   df = temp2,
-#   data.col = "KS",
-#   group.col = "Dist",
-#   group1 = "Orychrophragmus_violaceae",
-#   group2 =  "outgroup",
-#   colors = c("#000000",
-#              "#A020F0"
-#              ), 
-#   downsample_dist = TRUE)
-# 
-# 
-# tmp_prep$test.res
-# 
-# tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+tmp_prep <- prep_ecdf_ks(
+  df = temp2,
+  data.col = "KS",
+  group.col = "Dist",
+  group1 = "Orychrophragmus_violaceae",
+  group2 =  "outgroup",
+  colors = c("#000000",
+             "#A020F0"
+             ),
+  downsample_dist = TRUE)
+
+
+tmp_prep$test.res
+
+tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
 
 
 
@@ -1310,21 +1324,21 @@ dist_lengths <- unlist(purrr::map(c(
   "Brassica.csv",
   "Cakile.csv",
   "Crambe.csv",
-  "dist_sim_ingroup.csv",
   "Psychine.csv",
   "Savignya.csv",
+  "Vella.csv",
+  "Zilla.csv",
   "sim_ancestral_dist.csv",
   "sim_ingroup_dist.csv",
   "sim_outgroup_dist.csv",
-  "sim_outgroup_dist_wo_ory.csv",
-  "Vella.csv",
-  "Zilla.csv"), function(e){
+  "sim_outgroup_dist_wo_ory.csv"), function(e){
   tmp = read.csv(paste0("./output/", e))
   return(dim(tmp)[1])
 }))
 
 min(dist_lengths)
 max(dist_lengths)
+
 
 
 ```
