@@ -24,7 +24,18 @@ library(mdthemes)
 theme_set(mdthemes::md_theme_minimal())
 
 show_demo_plots = FALSE
+
+# Shawn's requested colors:
+
+#           RStudio     Hex
+# ingroup	  "darkgreen"	#006400
+# outgroup	"purple"	  #A020F0
+
+# if not in or outgroup use black
+
 ```
+
+
 
 # Load in data
 Load in KS
@@ -163,7 +174,7 @@ if(show_demo_plots){
     geom_density(data = data.frame(KS = test_arr
                                    #, Species = rep('Mix', times = length(test_arr))
                                    ),
-                 aes(x = KS), color = 'Blue')+
+                 aes(x = KS), color = '#006400')+
     facet_wrap(Species~.)+
     theme(legend.position = 'none')
 }
@@ -187,7 +198,7 @@ if(show_demo_plots){
     geom_density(data = data.frame(KS = test_arr
                                    #, Species = rep('Mix', times = length(test_arr))
                                    ),
-                 aes(x = KS), color = 'Blue')+
+                 aes(x = KS), color = '#A020F0')+
     facet_wrap(Species~.)+
     theme(legend.position = '')
 }
@@ -206,16 +217,13 @@ if(show_demo_plots){
       length_out = 100)  
   })
   
-  if(show_demo_plots){
-    do.call(rbind, purrr::map(seq_along(resample_list), function(i){
-      out = data.frame(KS = resample_list[[i]])
-      out[['Rep']] = as.character(i)
-      return(out)
-    })) %>% ggplot(aes(x = KS#, color = Rep
-                     , group = Rep
-                     ))+
-      geom_density()
-  }
+  do.call(rbind, purrr::map(seq_along(resample_list), function(i){
+    out = data.frame(KS = resample_list[[i]])
+    out[['Rep']] = as.character(i)
+    return(out)
+  })) %>% ggplot(aes(x = KS, group = Rep
+                   ))+
+    geom_density()
 }
 ```
 
@@ -225,15 +233,17 @@ if(show_demo_plots){
 
 ## Functions to Prepare KSs for ECDF and plot the prepared data
 ```{r}
+# This is adapted from a function I wrote for my thesis. 
+# See https://github.com/danielkick/mRNA24hLC
 prep_ecdf_ks <- function(
   df = rbind(temp1, temp2),
   data.col = "Corr",
   group.col = "group",
-  group1 = "Baseline",
+  group1 = "Baseline",   
   group2 = "Compensated",
-  colors = c("#4d4d4d", 
+  colors = c("#006400", 
              #"#67a9cf", 
-             "#1c9099"),
+             "#A020F0"),
   downsample_dist = TRUE) {
   
   # Adapted from:
@@ -346,9 +356,8 @@ tmp_prep <- prep_ecdf_ks(
   group.col = "Species",
   group1 = "Brassica_cretica",
   group2 =  "Brassica_hilarionis",
-  colors = c("#4d4d4d",
-             #"#67a9cf",
-             "#1c9099"), 
+  colors = c("#000099",
+             "#990000"), 
   downsample_dist = TRUE)
 
 if(show_demo_plots){
@@ -369,18 +378,17 @@ df_demo_comingle <- data.frame(
 df_demo_comingle %>% 
   ggplot(aes(x = KS, fill = Species))+
   geom_density(alpha = 0.5)+
-  scale_fill_manual(values = c('Purple', 'Orange', 'Blue'))+
+  scale_fill_manual(values = c('#006400', '#A020F0', 'Blue'))+
   theme(legend.position = 'bottom')
 
 tmp_prep <- prep_ecdf_ks(
   df = df_demo_comingle,
   data.col = "KS",
   group.col = "Species",
-  group1 = "ingroup",
+  group1 =  "ingroup",
   group2 =  "outgroup",
-  colors = c("#4d4d4d",
-             #"#67a9cf",
-             "#1c9099"), 
+  colors = c("#006400",
+             "#A020F0"), 
   downsample_dist = TRUE)
 
 if(show_demo_plots){
@@ -432,12 +440,8 @@ if (file.exists("./sp_comb_list.Rdata")){
           group.col = "Species",
           group1 = sp_comb[i, c("Species_1")],
           group2 =  sp_comb[i, c("Species_2")],
-          # group.col = "Group",
-          # group1 = "ingroup",
-          # group2 =  "outgroup",
-          colors = c("#4d4d4d", 
-                     #"#67a9cf", 
-                     "#1c9099"))
+          colors = c("#000099", 
+                     "#990000"))
         return(out)
     })
   
@@ -719,31 +723,35 @@ sim_ingroup_dist <- comingle_KS(
   replace = T,
   length_out = sim_length)
 
-ggplot()+geom_density(aes(x = sim_ingroup_dist))
+if(show_demo_plots){
+  ggplot()+geom_density(aes(x = sim_ingroup_dist))
+}
 ```
 
 Resample
 ```{r}
 # simulate a population of distributions
-n_sims = 10
-
-sim_ingroup_dist_resampled <- do.call(
-  rbind, 
-  map(seq(n_sims), function(i){
-    out <- data.frame(KS = comingle_KS(
-      df = M,
-      species = names(ingroup_pr_array),
-      weights = ingroup_pr_array,
-      replace = T,
-      length_out = sim_length)
-      )
-    out$i <- i
-    return(out)
-    })
-  )
-
-ggplot(sim_ingroup_dist_resampled, aes(x = KS, group = i))+
-  geom_density(size = 0.5)
+if(show_demo_plots){
+  n_sims = 10
+  
+  sim_ingroup_dist_resampled <- do.call(
+    rbind, 
+    map(seq(n_sims), function(i){
+      out <- data.frame(KS = comingle_KS(
+        df = M,
+        species = names(ingroup_pr_array),
+        weights = ingroup_pr_array,
+        replace = T,
+        length_out = sim_length)
+        )
+      out$i <- i
+      return(out)
+      })
+    )
+  
+  ggplot(sim_ingroup_dist_resampled, aes(x = KS, group = i))+
+    geom_density(size = 0.5)
+}
 ```
 
 
@@ -764,7 +772,9 @@ sim_outgroup_dist <- comingle_KS(
   replace = T,
   length_out = outgroup_sim_length)
 
-ggplot()+geom_density(aes(x = sim_outgroup_dist))
+if(show_demo_plots){
+  ggplot()+geom_density(aes(x = sim_outgroup_dist))
+}
 ```
 
 
@@ -788,26 +798,31 @@ sim_outgroup_dist_wo_ory <- comingle_KS(
   replace = T,
   length_out = outgroup_sim_length_wo_ory)
 
-ggplot()+geom_density(aes(x = sim_outgroup_dist_wo_ory))
+if(show_demo_plots){
+  ggplot()+geom_density(aes(x = sim_outgroup_dist_wo_ory))
+}
 ```
 
 ```{r}
 # Plot all three sim dist for comparison
 
-ggplot()+
-  geom_density(aes(x = sim_ingroup_dist), color = 'blue')+
-  geom_density(aes(x = sim_outgroup_dist), color = 'red')+
-  geom_density(aes(x = sim_outgroup_dist_wo_ory), color = 'orange')
-
+if(show_demo_plots){
+  ggplot()+
+    geom_density(aes(x = sim_ingroup_dist), color = '#006400')+
+    geom_density(aes(x = sim_outgroup_dist), color = '#A020F0')+
+    geom_density(aes(x = sim_outgroup_dist_wo_ory), color = '#000000')
+}
 # don't do outgroup wo ory
 ```
 
 
 # Ingroup vs Outgroup
 ```{r}
-ggplot()+
-  geom_density(aes(x = sim_ingroup_dist), color = 'blue')+
-  geom_density(aes(x = sim_outgroup_dist), color = 'red')
+if(show_demo_plots){
+  ggplot()+
+    geom_density(aes(x = sim_ingroup_dist), color = '#006400')+
+    geom_density(aes(x = sim_outgroup_dist), color = '#A020F0')
+}
 ```
 
 ```{r}
@@ -824,13 +839,14 @@ tmp_prep <- prep_ecdf_ks(
   group.col = "Dist",
   group1 = "ingroup",
   group2 =  "outgroup",
-  colors = c("#4d4d4d",
-             #"#67a9cf",
-             "#1c9099"), 
+  colors = c("#006400",
+             "#A020F0"), 
   downsample_dist = TRUE)
 
-plot_ecdf_ks_prep(prep = tmp_prep)
+plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+plt
 tmp_prep$test.res
+ggsave("./output/ingroup_vs_outgroup.svg", plt, width = 11, height = 8.5)
 ```
 
 
@@ -845,28 +861,26 @@ temp2 <- rbind(temp, temp2)
 
 # vs ingroup
 
-tmp_prep <- prep_ecdf_ks(
-  df = temp2,
-  data.col = "KS",
-  group.col = "Dist",
-  group1 = "Orychrophragmus_violaceae",
-  group2 =  "ingroup",
-  colors = c("#4d4d4d",
-             #"#67a9cf",
-             "#1c9099"), 
-  downsample_dist = TRUE)
-
-tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
-
-
+# tmp_prep <- prep_ecdf_ks(
+#   df = temp2,
+#   data.col = "KS",
+#   group.col = "Dist",
+#   group1 = "Orychrophragmus_violaceae",
+#   group2 =  "ingroup",
+#   colors = c("#000000",
+#              "#006400"), 
+#   downsample_dist = TRUE)
+# 
+# tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
 
 tmp_prep$test.res
+
 
 tmp_plt <- tmp_plt+
   labs(title = 'K-S Test *Orychrophragmus violaceae* vs Ingroup',
        subtitle = 'p <2.2e-16')+
   scale_color_manual(
-    values =  c("#4d4d4d", "#1c9099"),
+    values =  c("#006400", "#000000"),
     limits = c("ingroup", "Orychrophragmus_violaceae"),
     labels = c("Ingroup", "*Orychrophragmus violaceae*")
   )+
@@ -875,6 +889,7 @@ tmp_plt <- tmp_plt+
 
 
 tmp_plt
+ggsave("./output/Orychrophragmus_violaceae_vs_ingroup.svg", tmp_plt, width = 11, height = 8.5)
 # ggsave(tmp_plt, './output/KS_Contrast_Oviolaceae_vs_ingroup.pdf')
 
 
@@ -884,22 +899,21 @@ tmp_plt
 ```{r}
 # vs outgroup
 
-tmp_prep <- prep_ecdf_ks(
-  df = temp2,
-  data.col = "KS",
-  group.col = "Dist",
-  group1 = "Orychrophragmus_violaceae",
-  group2 =  "outgroup",
-  colors = c("#4d4d4d",
-             "#67a9cf"#,
-             # "#1c9099"
-             ), 
-  downsample_dist = TRUE)
-
-
-tmp_prep$test.res
-
-tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+# tmp_prep <- prep_ecdf_ks(
+#   df = temp2,
+#   data.col = "KS",
+#   group.col = "Dist",
+#   group1 = "Orychrophragmus_violaceae",
+#   group2 =  "outgroup",
+#   colors = c("#000000",
+#              "#A020F0"
+#              ), 
+#   downsample_dist = TRUE)
+# 
+# 
+# tmp_prep$test.res
+# 
+# tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
 
 
 
@@ -908,7 +922,7 @@ tmp_plt <- tmp_plt+
   labs(title = 'K-S Test *Orychrophragmus violaceae* vs Outgroup',
        subtitle = 'p <2.2e-16')+
   scale_color_manual(
-    values =  c("#4d4d4d", "#1c9099"),
+    values =  c("#A020F0", "#000000"),
     limits = c("outgroup", "Orychrophragmus_violaceae"),
     labels = c("Outgroup", "*Orychrophragmus violaceae*")
   )+
@@ -916,6 +930,7 @@ tmp_plt <- tmp_plt+
   theme(legend.position = 'bottom')
 
 tmp_plt
+ggsave("./output/Orychrophragmus_violaceae_vs_outgroup.svg", tmp_plt, width = 11, height = 8.5)
 ```
 
 
@@ -1051,8 +1066,8 @@ needed_subtribe_plts <- map(
       group.col = "Dist",
       group1 = Group1,
       group2 = Group2,
-      colors = c("#4d4d4d",
-                 "#67a9cf"
+      colors = c("#000000",
+                 "#990000"
                  ), 
       downsample_dist = TRUE)
     
@@ -1062,7 +1077,7 @@ needed_subtribe_plts <- map(
       labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
            subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
       scale_color_manual(
-        values =  c("#4d4d4d", "#1c9099"),
+        values =  c("#000000", "#990000"),
         limits = c(Group1, Group2),
         labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
       )+
@@ -1102,8 +1117,8 @@ extra_subtribe_plts_vs_ingroup <- map(
       group.col = "Dist",
       group1 = Group1,
       group2 = Group2,
-      colors = c("#4d4d4d",
-                 "#67a9cf"
+      colors = c("#000000",
+                 "#990000"
                  ), 
       downsample_dist = TRUE)
     
@@ -1113,7 +1128,7 @@ extra_subtribe_plts_vs_ingroup <- map(
       labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
            subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
       scale_color_manual(
-        values =  c("#4d4d4d", "#1c9099"),
+        values =  c("#000000", "#006400"),
         limits = c(Group1, Group2),
         labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
       )+
@@ -1146,8 +1161,8 @@ extra_subtribe_plts_vs_outgroup <- map(
       group.col = "Dist",
       group1 = Group1,
       group2 = Group2,
-      colors = c("#4d4d4d",
-                 "#67a9cf"
+      colors = c("#000000",
+                 "#990000"
                  ), 
       downsample_dist = TRUE)
     
@@ -1157,7 +1172,7 @@ extra_subtribe_plts_vs_outgroup <- map(
       labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
            subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
       scale_color_manual(
-        values =  c("#4d4d4d", "#1c9099"),
+        values =  c("#000000", "#A020F0"),
         limits = c(Group1, Group2),
         labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
       )+
@@ -1188,69 +1203,130 @@ if(mean(root_pr_array > 0) != 1){
   print("Root Node Incorrectly Selected")
 } else {
   
+  root_pr_array <- unlist(root_pr_array)
+  
+  sim_length <- M %>% group_by(Species) %>% tally() %>% select(n)
+  sim_length <- round(mean(sim_length$n))
+  
+  sim_ancestral_dist <- comingle_KS(
+    df = M,
+    species = names(root_pr_array),
+    weights = root_pr_array,
+    replace = T,
+    length_out = sim_length)
+  
+  
+  
+  
+  extra_subtribe_plts_vs_ancestral <- map(
+    seq(1, length(needed_subtribe_dists)), 
+    function(i){
+        
+      Group1 <- names(needed_subtribe_dists)[i]
+      Group2 <- "Ancester"
+      
+      KS1 <- needed_subtribe_dists[[Group1]]
+      KS2 <- sim_ancestral_dist
+      
+      temp <- data.frame(
+        Dist = c(rep(Group1, times = length(KS1)),
+                 rep(Group2, times = length(KS2))),
+        KS   = c(KS1, KS2)
+      )
+      
+      
+      tmp_prep <- prep_ecdf_ks(
+        df = temp,
+        data.col = "KS",
+        group.col = "Dist",
+        group1 = Group1,
+        group2 = Group2,
+        colors = c("#000000",
+                   "#990000"
+                   ), 
+        downsample_dist = TRUE)
+      
+      tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
+      
+      tmp_plt <- tmp_plt+
+        labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
+             subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
+        scale_color_manual(
+          values =  c("#000000", "#990000"),
+          limits = c(Group1, Group2),
+          labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
+        )+
+        md_theme_minimal()+
+        theme(legend.position = 'bottom')
+      
+      return(tmp_plt)
+  })
+  
+  plt <- cowplot::plot_grid(plotlist = extra_subtribe_plts_vs_ancestral)
+  ggsave("./output/subtribe_vs_ancestral.svg", plt, width = 11, height = 8.5)
+}
+```
+
+
+# Record all simulated distributions
+
+```{r}
+write_dist <- function(dist_to_write = sim_ingroup_dist,
+                       save_name = 'dist_sim_ingroup'){
+  out <- data.frame(dist_to_write)
+  names(out) <- save_name
+  write.csv(out, file = paste0('./output/', save_name, '.csv'), row.names = F)
 }
 
-root_pr_array <- unlist(root_pr_array)
+tmp_list_names <- list(
+  'sim_ingroup_dist',
+  'sim_outgroup_dist',
+  'sim_outgroup_dist_wo_ory',
+  'sim_ancestral_dist') 
+tmp_list <- list(
+  sim_ingroup_dist,
+  sim_outgroup_dist,
+  sim_outgroup_dist_wo_ory,
+  sim_ancestral_dist)
 
-sim_length <- M %>% group_by(Species) %>% tally() %>% select(n)
-sim_length <- round(mean(sim_length$n))
-
-sim_ancestral_dist <- comingle_KS(
-  df = M,
-  species = names(root_pr_array),
-  weights = root_pr_array,
-  replace = T,
-  length_out = sim_length)
-
-
-
-
-extra_subtribe_plts_vs_ancestral <- map(
-  seq(1, length(needed_subtribe_dists)), 
-  function(i){
-      
-    Group1 <- names(needed_subtribe_dists)[i]
-    Group2 <- "Ancester"
-    
-    KS1 <- needed_subtribe_dists[[Group1]]
-    KS2 <- sim_ancestral_dist
-    
-    temp <- data.frame(
-      Dist = c(rep(Group1, times = length(KS1)),
-               rep(Group2, times = length(KS2))),
-      KS   = c(KS1, KS2)
+for(i in seq(1, length(tmp_list))){
+  write_dist(
+    dist_to_write = tmp_list[[i]],
+    save_name = tmp_list_names[[i]]
     )
-    
-    
-    tmp_prep <- prep_ecdf_ks(
-      df = temp,
-      data.col = "KS",
-      group.col = "Dist",
-      group1 = Group1,
-      group2 = Group2,
-      colors = c("#4d4d4d",
-                 "#67a9cf"
-                 ), 
-      downsample_dist = TRUE)
-    
-    tmp_plt <- plot_ecdf_ks_prep(prep = tmp_prep)
-    
-    tmp_plt <- tmp_plt+
-      labs(title = paste0('*',Group1,'* vs *', Group2, '*'),
-           subtitle = paste0('p = ', as.character(tmp_prep$test.res$p.value)))+
-      scale_color_manual(
-        values =  c("#4d4d4d", "#1c9099"),
-        limits = c(Group1, Group2),
-        labels = c(paste0('*', Group1, '*'), paste0('*', Group2, '*'))
-      )+
-      md_theme_minimal()+
-      theme(legend.position = 'bottom')
-    
-    return(tmp_plt)
-})
+}
 
-plt <- cowplot::plot_grid(plotlist = extra_subtribe_plts_vs_ancestral)
-ggsave("./output/subtribe_vs_ancestral.svg", plt, width = 11, height = 8.5)
+for(i in seq(1, length(needed_subtribe_dists))){
+  write_dist(
+    dist_to_write = needed_subtribe_dists[[i]],
+    save_name = names(needed_subtribe_dists)[i]
+    )
+}
+```
+
+
+```{r}
+dist_lengths <- unlist(purrr::map(c(
+  "Brassica.csv",
+  "Cakile.csv",
+  "Crambe.csv",
+  "dist_sim_ingroup.csv",
+  "Psychine.csv",
+  "Savignya.csv",
+  "sim_ancestral_dist.csv",
+  "sim_ingroup_dist.csv",
+  "sim_outgroup_dist.csv",
+  "sim_outgroup_dist_wo_ory.csv",
+  "Vella.csv",
+  "Zilla.csv"), function(e){
+  tmp = read.csv(paste0("./output/", e))
+  return(dim(tmp)[1])
+}))
+
+min(dist_lengths)
+max(dist_lengths)
+
 
 ```
+
 
